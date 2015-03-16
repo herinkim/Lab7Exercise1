@@ -10,6 +10,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -19,9 +20,16 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends ActionBarActivity {
+
+    // Store time when user clicked button
+    long prevTimeClickBangkok = 0;
+    long prevTimeClickNontha = 0;
+    long prevTimeClickPathum = 0;
+    String currentCountry = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,13 +45,49 @@ public class MainActivity extends ActionBarActivity {
     }
 
     public void buttonClicked(View v) {
+
+        long timeMillis = System.currentTimeMillis();
+        long getTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(timeMillis);
+
+        System.out.println("time = " + getTimeSeconds);
+        System.out.println("bkk clicked = " + prevTimeClickBangkok);
+        System.out.println("pathum clicked = " + prevTimeClickPathum);
+        System.out.println("nonta clicked = " + prevTimeClickNontha);
+        System.out.println("count = " + currentCountry);
+
         int id = v.getId();
         WeatherTask w = new WeatherTask();
         switch (id) {
             case R.id.btBangkok:
-                w.execute("http://ict.siit.tu.ac.th/~cholwich/bangkok.json", "Bangkok Weather");
+                if(((getTimeSeconds - prevTimeClickBangkok) > 60))
+                {
+                    w.execute("http://ict.siit.tu.ac.th/~cholwich/bangkok.json", "Bangkok Weather");
+                    prevTimeClickBangkok = getTimeSeconds;
+                    prevTimeClickPathum = 0;
+                    prevTimeClickNontha = 0;
+                }
+                break;
+            case R.id.btPathum:
+                if(((getTimeSeconds - prevTimeClickPathum) > 60))
+                {
+                    w.execute("http://ict.siit.tu.ac.th/~cholwich/pathumthani.json", "Pathumthani Weather");
+                    prevTimeClickPathum = getTimeSeconds;
+                    prevTimeClickBangkok = 0;
+                    prevTimeClickNontha = 0;
+                }
+                break;
+            case R.id.btNon:
+                if(((getTimeSeconds - prevTimeClickNontha) > 60))
+                {
+                    w.execute("http://ict.siit.tu.ac.th/~cholwich/nonthaburi.json", "Nonthaburi Weather");
+                    prevTimeClickNontha = getTimeSeconds;
+                    prevTimeClickPathum = 0;
+                    prevTimeClickBangkok = 0;
+                }
                 break;
         }
+
+//        System.out.println("Current time: " + System.currentTimeMillis());
     }
 
     @Override
@@ -72,8 +116,10 @@ public class MainActivity extends ActionBarActivity {
         String errorMsg = "";
         ProgressDialog pDialog;
         String title;
+        String weather;
 
-        double windSpeed;
+        double windSpeed, temp, tempMin, tempMax;
+        int humidity;
 
         @Override
         protected void onPreExecute() {
@@ -103,8 +149,28 @@ public class MainActivity extends ActionBarActivity {
                     }
                     //Start parsing JSON
                     JSONObject jWeather = new JSONObject(buffer.toString());
+
+                    // Get weather
+                    JSONArray jWeathArr = jWeather.getJSONArray("weather");
+                    JSONObject jWeath = jWeathArr.getJSONObject(0);
+                    weather = jWeath.getString("main");
+
+                    // Get wind speed
                     JSONObject jWind = jWeather.getJSONObject("wind");
                     windSpeed = jWind.getDouble("speed");
+
+                    // Get humidity
+                    JSONObject jMain = jWeather.getJSONObject("main");
+                    humidity = jMain.getInt("humidity");
+
+                    // Get temperature
+                    temp = jMain.getDouble("temp");
+                    tempMin = jMain.getDouble("temp_min");
+                    tempMax = jMain.getDouble("temp_max");
+
+                    // Get which country's weather info it is for
+                    currentCountry = jWeather.getString("name");
+
                     errorMsg = "";
                     return true;
                 }
@@ -126,7 +192,7 @@ public class MainActivity extends ActionBarActivity {
 
         @Override
         protected void onPostExecute(Boolean result) {
-            TextView tvTitle, tvWeather, tvWind;
+            TextView tvTitle, tvWeather, tvWind, tvHumid, tvTemp;
             if (pDialog.isShowing()) {
                 pDialog.dismiss();
             }
@@ -134,15 +200,22 @@ public class MainActivity extends ActionBarActivity {
             tvTitle = (TextView)findViewById(R.id.tvTitle);
             tvWeather = (TextView)findViewById(R.id.tvWeather);
             tvWind = (TextView)findViewById(R.id.tvWind);
+            tvHumid = (TextView)findViewById(R.id.tvHumid);
+            tvTemp = (TextView)findViewById(R.id.tvTemp);
 
             if (result) {
                 tvTitle.setText(title);
+                tvWeather.setText(weather);
+                tvTemp.setText(String.format("%.2f (max = %.2f, min = %.2f)", temp, tempMax, tempMin));
                 tvWind.setText(String.format("%.1f", windSpeed));
+                tvHumid.setText(String.format("%d%%", humidity));
             }
             else {
                 tvTitle.setText(errorMsg);
+                tvTemp.setText("");
                 tvWeather.setText("");
                 tvWind.setText("");
+                tvHumid.setText("");
             }
         }
     }
